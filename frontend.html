@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Celebrity Look-Alike</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .bar-fill { transition: width 600ms ease-out; }
+
+    /* Animated indeterminate progress bar for loading state */
+    @keyframes slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(400%); }
+    }
+    .progress-slide { animation: slide 1.2s ease-in-out infinite; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.9s linear infinite; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 250ms ease-out; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
+  <main class="flex-1 max-w-3xl w-full mx-auto px-4 py-8">
+
+    <header class="mb-6">
+      <h1 class="text-2xl font-semibold">Celebrity Look-Alike</h1>
+      <p class="text-sm text-slate-500">
+        Upload a photo or use your webcam — see who from CelebA you most resemble.
+      </p>
+    </header>
+
+    <!-- ── How it works ───────────────────────────────────────── -->
+    <section class="mb-6 grid grid-cols-3 gap-3">
+      <div class="bg-white rounded-lg border border-slate-200 p-3 text-center">
+        <div class="text-xl mb-1">🔍</div>
+        <p class="text-xs font-semibold text-slate-700">Detect</p>
+        <p class="text-xs text-slate-500 leading-tight">MTCNN locates your face</p>
+      </div>
+      <div class="bg-white rounded-lg border border-slate-200 p-3 text-center">
+        <div class="text-xl mb-1">🧠</div>
+        <p class="text-xs font-semibold text-slate-700">Embed</p>
+        <p class="text-xs text-slate-500 leading-tight">ConvNeXt + ArcFace into a 1024-d vector</p>
+      </div>
+      <div class="bg-white rounded-lg border border-slate-200 p-3 text-center">
+        <div class="text-xl mb-1">🎯</div>
+        <p class="text-xs font-semibold text-slate-700">Match</p>
+        <p class="text-xs text-slate-500 leading-tight">Compared against 50 identities</p>
+      </div>
+    </section>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 border-b border-slate-200 mb-5">
+      <button id="tab-upload" class="tab-btn px-4 py-2 border-b-2 border-blue-600 text-blue-700 font-medium">
+        Upload
+      </button>
+      <button id="tab-webcam" class="tab-btn px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+        Webcam
+      </button>
+    </div>
+
+    <!-- Options bar -->
+    <div class="flex flex-wrap items-center gap-4 mb-5 p-3 bg-white rounded-lg border border-slate-200">
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" id="opt-detect" checked class="rounded">
+        Detect face first (recommended)
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" id="opt-tta" checked class="rounded">
+        TTA (more accurate, slower)
+      </label>
+      <label class="flex items-center gap-2 text-sm">
+        Top-K
+        <input type="number" id="opt-topk" value="5" min="1" max="50"
+               class="w-16 px-2 py-1 border border-slate-300 rounded text-sm">
+      </label>
+    </div>
+
+    <!-- Upload panel -->
+    <section id="panel-upload" class="bg-white rounded-lg border border-slate-200 p-5">
+      <input type="file" id="file-input" accept="image/*" class="hidden">
+      <div id="drop-zone"
+           class="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition">
+        <p class="text-slate-600 mb-1">Click to choose an image, or drop one here</p>
+        <p class="text-xs text-slate-400">JPG, PNG, WEBP — up to 10 MB</p>
+      </div>
+      <div class="mt-4 flex justify-end">
+        <button id="btn-predict-upload" disabled
+                class="px-4 py-2 rounded bg-blue-600 text-white font-medium disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-700">
+          Predict
+        </button>
+      </div>
+    </section>
+
+    <!-- Webcam panel -->
+    <section id="panel-webcam" class="hidden bg-white rounded-lg border border-slate-200 p-5">
+      <div class="flex flex-col items-center gap-3">
+        <video id="video" autoplay playsinline muted class="rounded-lg bg-slate-900 w-full max-w-md aspect-video"></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <div class="flex gap-2">
+          <button id="btn-start-cam"
+                  class="px-4 py-2 rounded bg-slate-700 text-white font-medium hover:bg-slate-800">
+            Start camera
+          </button>
+          <button id="btn-capture" disabled
+                  class="px-4 py-2 rounded bg-blue-600 text-white font-medium disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-700">
+            Capture & predict
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="result-area" class="mt-6"></section>
+
+  </main>
+
+  <!-- ── Footer ────────────────────────────────────────────── -->
+  <footer class="border-t border-slate-200 bg-white mt-8">
+    <div class="max-w-3xl mx-auto px-4 py-4 text-center text-xs text-slate-500">
+      Built by <span class="font-medium text-slate-700">Nader Amro</span>,
+      <span class="font-medium text-slate-700">Saba Mohammad</span>, and
+      <span class="font-medium text-slate-700">Mira Diab</span>
+      &nbsp;•&nbsp; Deep Learning
+      &nbsp;•&nbsp; Dr. Tariq Bdair
+    </div>
+  </footer>
+
+  <script>
+    document.body.classList.add('ready');
+
+    // ── Tab switching ─────────────────────────────────────
+    const tabUpload = document.getElementById('tab-upload');
+    const tabWebcam = document.getElementById('tab-webcam');
+    const panelUpload = document.getElementById('panel-upload');
+    const panelWebcam = document.getElementById('panel-webcam');
+
+    function setTab(which) {
+      const isUpload = which === 'upload';
+      panelUpload.classList.toggle('hidden', !isUpload);
+      panelWebcam.classList.toggle('hidden',  isUpload);
+
+      tabUpload.classList.toggle('border-blue-600',   isUpload);
+      tabUpload.classList.toggle('text-blue-700',     isUpload);
+      tabUpload.classList.toggle('font-medium',       isUpload);
+      tabUpload.classList.toggle('border-transparent', !isUpload);
+      tabUpload.classList.toggle('text-slate-500',     !isUpload);
+
+      tabWebcam.classList.toggle('border-blue-600',   !isUpload);
+      tabWebcam.classList.toggle('text-blue-700',     !isUpload);
+      tabWebcam.classList.toggle('font-medium',       !isUpload);
+      tabWebcam.classList.toggle('border-transparent', isUpload);
+      tabWebcam.classList.toggle('text-slate-500',     isUpload);
+    }
+    tabUpload.addEventListener('click', () => setTab('upload'));
+    tabWebcam.addEventListener('click', () => setTab('webcam'));
+
+    // ── Options ───────────────────────────────────────────
+    const optDetect = document.getElementById('opt-detect');
+    const optTta    = document.getElementById('opt-tta');
+    const optTopk   = document.getElementById('opt-topk');
+
+    // ── Upload flow ───────────────────────────────────────
+    const fileInput = document.getElementById('file-input');
+    const dropZone  = document.getElementById('drop-zone');
+    const btnPredictUpload = document.getElementById('btn-predict-upload');
+    let selectedFile = null;
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) selectFile(e.target.files[0]);
+    });
+    ['dragover','dragenter'].forEach(ev =>
+      dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-500','bg-blue-50/50');
+      })
+    );
+    ['dragleave','drop'].forEach(ev =>
+      dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500','bg-blue-50/50');
+      })
+    );
+    dropZone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) selectFile(f);
+    });
+
+    function selectFile(file) {
+      if (!file.type.startsWith('image/')) {
+        renderError('Please choose an image file.');
+        return;
+      }
+      selectedFile = file;
+      btnPredictUpload.disabled = false;
+      const url = URL.createObjectURL(file);
+      renderPreview(url, 'Selected image');
+    }
+
+    btnPredictUpload.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      const detect = optDetect.checked;
+      const topk   = parseInt(optTopk.value) || 5;
+      const useTta = optTta.checked;
+
+      const endpoint = detect
+        ? `/predict/detect?top_k=${topk}&use_tta=${useTta}`
+        : `/predict?top_k=${topk}&use_tta=${useTta}`;
+
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      await runRequest(endpoint, { method: 'POST', body: fd },
+                       URL.createObjectURL(selectedFile));
+    });
+
+    // ── Webcam flow ───────────────────────────────────────
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const btnStartCam = document.getElementById('btn-start-cam');
+    const btnCapture  = document.getElementById('btn-capture');
+    let stream = null;
+
+    btnStartCam.addEventListener('click', async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        btnCapture.disabled = false;
+        btnStartCam.textContent = 'Camera on';
+        btnStartCam.disabled = true;
+      } catch (err) {
+        renderError(`Camera error: ${err.message}. Make sure you allow camera access.`);
+      }
+    });
+
+    btnCapture.addEventListener('click', async () => {
+      if (!stream) return;
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+      const detect = optDetect.checked;
+      const topk   = parseInt(optTopk.value) || 5;
+      const useTta = optTta.checked;
+
+      await runRequest('/predict/base64', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_base64: dataUrl, top_k: topk, use_tta: useTta, detect: detect,
+        }),
+      }, dataUrl);
+    });
+
+    // ── Shared request + render ───────────────────────────
+    async function runRequest(url, opts, previewSrc) {
+      renderLoading(previewSrc);
+      try {
+        const res = await fetch(url, opts);
+        const data = await res.json();
+        if (!res.ok) {
+          renderError(data.detail || `Error ${res.status}`, previewSrc);
+          return;
+        }
+        renderResult(data, previewSrc);
+      } catch (err) {
+        renderError(err.message, previewSrc);
+      }
+    }
+
+    const resultArea = document.getElementById('result-area');
+
+    function renderPreview(src, caption) {
+      resultArea.innerHTML = `
+        <div class="bg-white rounded-lg border border-slate-200 p-4 fade-in">
+          <p class="text-xs text-slate-500 mb-2">${caption}</p>
+          <img src="${src}" class="max-h-64 rounded mx-auto">
+        </div>`;
+    }
+
+    // ── Loading state with cycling step labels ────────────
+    let loadingTimer = null;
+
+    function renderLoading(previewSrc) {
+      const steps = ['Detecting face…', 'Computing embedding…', 'Matching identities…'];
+      let idx = 0;
+
+      resultArea.innerHTML = `
+        <div class="bg-white rounded-lg border border-slate-200 p-5 fade-in">
+          ${previewSrc ? `
+            <img src="${previewSrc}" class="max-h-48 rounded mx-auto mb-4">
+          ` : ''}
+          <div class="flex items-center justify-center gap-3 mb-3">
+            <svg class="spinner w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25" stroke-width="4"/>
+              <path stroke-width="4" stroke-linecap="round"
+                    d="M12 2 a10 10 0 0 1 10 10"/>
+            </svg>
+            <p id="loading-step" class="text-slate-700 text-sm font-medium">${steps[0]}</p>
+          </div>
+          <div class="relative h-1 bg-slate-100 rounded-full overflow-hidden max-w-xs mx-auto">
+            <div class="absolute inset-y-0 w-1/4 bg-blue-500 rounded-full progress-slide"></div>
+          </div>
+        </div>`;
+
+      // Cycle through step labels — purely cosmetic, doesn't reflect actual progress
+      // but feels much more polished than a frozen "Predicting..."
+      if (loadingTimer) clearInterval(loadingTimer);
+      loadingTimer = setInterval(() => {
+        idx = (idx + 1) % steps.length;
+        const el = document.getElementById('loading-step');
+        if (el) el.textContent = steps[idx];
+        else { clearInterval(loadingTimer); loadingTimer = null; }
+      }, 700);
+    }
+
+    function clearLoadingTimer() {
+      if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
+    }
+
+    function renderError(msg, previewSrc) {
+      clearLoadingTimer();
+      resultArea.innerHTML = `
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 fade-in">
+          ${previewSrc ? `<img src="${previewSrc}" class="max-h-48 rounded mx-auto mb-3">` : ''}
+          <p class="text-red-700 text-sm">⚠ ${escapeHtml(msg)}</p>
+        </div>`;
+    }
+
+    function renderResult(data, previewSrc) {
+      clearLoadingTimer();
+      const top = data.predictions[0];
+      const matchSrc = top.image_url || null;
+
+      // Build the user-photo block. If a bbox is present, overlay it as an SVG rect
+      // sized using the original image's coords (returned by MTCNN).
+      // The SVG overlay uses preserveAspectRatio="none" so it stretches to match
+      // the displayed image exactly, regardless of CSS scaling.
+      const userBlock = previewSrc ? `
+        <div class="relative inline-block max-w-full" id="user-img-wrapper">
+          <img id="user-img" src="${previewSrc}"
+               class="block max-h-72 max-w-full rounded">
+          <svg id="user-bbox" class="absolute inset-0 w-full h-full pointer-events-none hidden"
+               preserveAspectRatio="none">
+            <rect x="0" y="0" width="0" height="0"
+                  fill="none" stroke="#22c55e" stroke-width="3"
+                  vector-effect="non-scaling-stroke"
+                  stroke-dasharray="4 3" />
+          </svg>
+        </div>
+      ` : '<div class="text-slate-400 text-xs">no image</div>';
+
+      // Side-by-side comparison
+      const comparison = `
+        <div class="grid grid-cols-2 gap-4 mb-5 items-start">
+          <div class="text-center">
+            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wide">You</p>
+            <div class="flex items-center justify-center bg-slate-100 rounded-lg p-2 min-h-[180px]">
+              ${userBlock}
+            </div>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wide">Look-alike</p>
+            <div class="aspect-square bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center">
+              ${matchSrc
+                ? `<img src="${matchSrc}" class="w-full h-full object-cover" onerror="this.outerHTML='<span class=&quot;text-slate-400 text-xs px-3&quot;>Image unavailable</span>'">`
+                : '<span class="text-slate-400 text-xs px-3 text-center">No example image for this identity</span>'}
+            </div>
+            <p class="text-sm text-slate-600 mt-2">
+              <span class="font-semibold text-slate-800">${(top.confidence * 100).toFixed(1)}%</span> match
+            </p>
+          </div>
+        </div>`;
+
+      // Other top-K — small thumbnails with confidence bars
+      const others = data.predictions.slice(1).map(p => {
+        const pct = (p.confidence * 100).toFixed(1);
+        const thumb = p.image_url
+          ? `<img src="${p.image_url}" class="w-12 h-12 rounded object-cover bg-slate-100" onerror="this.style.display='none'">`
+          : `<div class="w-12 h-12 rounded bg-slate-100 flex items-center justify-center text-slate-300 text-xs">—</div>`;
+        return `
+          <div class="flex items-center gap-3 py-1.5">
+            ${thumb}
+            <div class="flex-1 bg-slate-100 rounded h-2 overflow-hidden">
+              <div class="bar-fill h-full bg-slate-400" style="width: ${pct}%"></div>
+            </div>
+            <div class="w-14 text-right text-sm tabular-nums text-slate-600">${pct}%</div>
+          </div>`;
+      }).join('');
+
+      const otherSection = data.predictions.length > 1 ? `
+        <div class="border-t border-slate-200 pt-4">
+          <p class="text-xs text-slate-500 uppercase tracking-wide mb-2">
+            Other matches
+          </p>
+          ${others}
+        </div>` : '';
+
+      const meta = data.bbox
+        ? `Face detected · ${(data.bbox.detection_confidence*100).toFixed(1)}% · ${data.used_tta ? 'TTA on' : 'TTA off'}`
+        : `${data.used_tta ? 'TTA on' : 'TTA off'} · Top-${data.top_k}`;
+
+      resultArea.innerHTML = `
+        <div class="bg-white rounded-lg border border-slate-200 p-5 fade-in">
+          ${comparison}
+          ${otherSection}
+          <div class="mt-3 text-center">
+            <p class="text-xs text-slate-400">${meta}</p>
+          </div>
+        </div>`;
+
+      // Wire up the bbox overlay AFTER the user image has loaded its natural dimensions
+      if (data.bbox && previewSrc) {
+        const img  = document.getElementById('user-img');
+        const svg  = document.getElementById('user-bbox');
+        const rect = svg ? svg.querySelector('rect') : null;
+
+        const drawBox = () => {
+          if (!img.naturalWidth || !rect) return;
+          // Use the natural image dimensions as the SVG viewBox so the rect
+          // can be drawn directly in the bbox's original-pixel coordinates.
+          svg.setAttribute('viewBox',
+            `0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+          rect.setAttribute('x', data.bbox.x1);
+          rect.setAttribute('y', data.bbox.y1);
+          rect.setAttribute('width',  data.bbox.x2 - data.bbox.x1);
+          rect.setAttribute('height', data.bbox.y2 - data.bbox.y1);
+          svg.classList.remove('hidden');
+        };
+
+        if (img.complete && img.naturalWidth) drawBox();
+        else img.addEventListener('load', drawBox, { once: true });
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>
