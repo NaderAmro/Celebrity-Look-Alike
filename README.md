@@ -23,12 +23,8 @@ The web frontend shows a side-by-side comparison: your photo on the left, the lo
 
 ---
 
-## Demo
 
-> 📹 **Demo video:** `docs/demo.mp4` *(see /docs folder)*
-> 📸 **Screenshots:** in `docs/screenshots/`
-
-Live API endpoints (when running):
+Live API endpoints (when running because its in demo phase):
 - **Frontend:** `http://localhost:8000/ui`
 - **Swagger docs:** `http://localhost:8000/docs`
 
@@ -83,15 +79,12 @@ Training script: [`Model.ipynb`](Model.ipynb)
 
 | Metric | Value |
 |---|---|
-| Top-1 Accuracy | TBD |
-| Top-5 Accuracy | TBD |
-| Macro F1 | TBD |
+| Top-1 Accuracy | 86.09% |
+| Top-5 Accuracy | 97.83% |
+| Macro F1 | 0.86 |
 | Identities | 50 |
-| Test set size | TBD |
+| Test set size | 230 images |
 
-**Qualitative results:**
-- Confusion matrix: `results/cm_recognition_v3.png`
-- Training curves: `results/history_v3.png`
 
 ---
 
@@ -112,9 +105,6 @@ Training script: [`Model.ipynb`](Model.ipynb)
 ├── results/
 │   ├── cm_recognition_v3.png # Confusion matrix
 │   └── history_v3.png        # Training curves
-└── docs/
-    ├── demo.mp4              # Demo video
-    └── screenshots/          # Frontend screenshots
 ```
 
 ---
