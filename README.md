@@ -99,7 +99,7 @@ Training script: [`pipeline.ipynb`](pipeline.ipynb)
 ├── requirements.txt          # Pinned dependencies
 ├── pipeline.ipynb               # Training notebook (full pipeline)
 ├── checkpoints/
-│   └── face_recognition_v3_final.pt   # Trained weights (~200 MB, not in git — see Setup)
+│   └── face_recognition_v3_final.pt   # Trained weights (~200 MB, not in git — see Setup- run pipeline.ipynb to train it)
 ├── examples/
 │   └── {identity_id}.jpg     # 50 representative face images
 ├── results/
