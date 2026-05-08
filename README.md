@@ -69,7 +69,7 @@ The model was trained on the CelebA dataset, restricted to the 50 identities wit
 - **Progressive unfreezing:** backbone frozen for first 5 epochs, then unfrozen with a 10× lower learning rate
 - **Test-Time Augmentation:** 5 augmented views averaged at inference
 
-Training script: [`Model.ipynb`](Model.ipynb)
+Training script: [`pipeline.ipynb`](pipeline.ipynb)
 
 ---
 
@@ -97,7 +97,7 @@ Training script: [`Model.ipynb`](Model.ipynb)
 ├── index.html                # Frontend (single-file)
 ├── extract_examples.py       # One-time script to build examples/
 ├── requirements.txt          # Pinned dependencies
-├── Model.ipynb               # Training notebook (full pipeline)
+├── pipeline.ipynb               # Training notebook (full pipeline)
 ├── checkpoints/
 │   └── face_recognition_v3_final.pt   # Trained weights (~200 MB, not in git — see Setup)
 ├── examples/
