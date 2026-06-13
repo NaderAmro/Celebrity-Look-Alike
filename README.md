@@ -231,7 +231,6 @@ Developed for the Deep Learning course taught by **Dr. Tariq Bdair**.
 - Mira Diab
 
 Built with PyTorch, timm, FastAPI, and a lot of debugging.
-
 ---
 
 ## License
